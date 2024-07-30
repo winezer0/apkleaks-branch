@@ -4,3 +4,5 @@ jadx/
 build/
 dist/
 venv/
+apkleaks-out/
+.idea/
