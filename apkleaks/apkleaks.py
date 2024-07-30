@@ -8,6 +8,7 @@ import shutil
 import sys
 import tempfile
 import threading
+import time
 
 from contextlib import closing
 from shutil import which
@@ -27,11 +28,19 @@ class APKLeaks:
 		self.file = os.path.realpath(args.file)
 		self.json = args.json
 		self.disarg = args.args
-		self.prefix = "apkleaks-"
-		self.tempdir = tempfile.mkdtemp(prefix=self.prefix)
+		self.clear = args.clear
+
+		self.prefix = "apkleaks"
+		self.tempdir_ = os.path.join(os.getcwd(), f"{self.prefix}-out", f"{os.path.basename(args.file)}")
+		self.tempdir = os.path.join(os.getcwd(), f"{self.prefix}-out", f"{os.path.basename(args.file)}")
 		self.main_dir = os.path.dirname(os.path.realpath(__file__))
-		self.output = tempfile.mkstemp(suffix=".%s" % ("json" if self.json else "txt"), prefix=self.prefix)[1] if args.output is None else args.output
-		self.fileout = open(self.output, "%s" % ("w" if self.json else "a"))
+
+		self.output = os.path.join(os.getcwd(), f"{self.prefix}-out", "result.txt") if args.output is None else args.output
+		if not os.path.exists(os.path.dirname(self.output)):
+			os.makedirs(os.path.dirname(self.output))
+		self.output_json = self.output + ".json"
+		self.output_open = open(self.output, "a+")
+
 		self.pattern = os.path.join(str(Path(self.main_dir).parent), "config", "regexes.json") if args.pattern is None else args.pattern
 		self.jadx = which("jadx") if which("jadx") is not None else os.path.join(str(Path(self.main_dir).parent), "jadx", "bin", "jadx%s" % (".bat" if os.name == "nt" else "")).replace("\\","/")
 		self.out_json = {}
@@ -88,6 +97,13 @@ class APKLeaks:
 
 	def decompile(self):
 		util.writeln("** Decompiling APK...", col.OKBLUE)
+
+		print("%s** Decompiling Temp Dir '%s%s%s%s'%s." % (col.HEADER, col.ENDC, col.OKGREEN, self.tempdir, col.HEADER, col.ENDC))
+
+		if os.path.exists(self.tempdir) and not self.clear:
+			util.writeln("** Decompiling APK History Exists, Skip... ", col.FAIL)
+			return
+
 		args = [self.jadx, self.file, "-d", self.tempdir]
 		try:
 			args.extend(re.split(r"\s|=", self.disarg))
@@ -95,13 +111,14 @@ class APKLeaks:
 			pass
 		comm = "%s" % (" ".join(quote(arg) for arg in args))
 		comm = comm.replace("\'","\"")
+		print("%s\n** os.system '%s%s%s%s'%s." % (col.HEADER, col.ENDC, col.OKGREEN, comm, col.HEADER, col.ENDC))
 		os.system(comm)
 
 	def extract(self, name, matches):
 		if len(matches):
 			stdout = ("[%s]" % (name))
 			util.writeln("\n" + stdout, col.OKGREEN)
-			self.fileout.write("%s" % (stdout + "\n" if self.json is False else ""))
+			self.output_open.write("%s" % (stdout + "\n"))
 			for secret in matches:
 				if name == "LinkFinder":
 					if re.match(r"^.(L[a-z]|application|audio|fonts|image|kotlin|layout|multipart|plain|text|video).*\/.+", secret) is not None:
@@ -109,8 +126,8 @@ class APKLeaks:
 					secret = secret[len("'"):-len("'")]
 				stdout = ("- %s" % (secret))
 				print(stdout)
-				self.fileout.write("%s" % (stdout + "\n" if self.json is False else ""))
-			self.fileout.write("%s" % ("\n" if self.json is False else ""))
+				self.output_open.write("%s" % (stdout + "\n"))
+			self.output_open.write("%s" % "\n")
 			self.out_json["results"].append({"name": name, "matches": matches})
 			self.scanned = True
 
@@ -138,12 +155,17 @@ class APKLeaks:
 						sys.exit(util.writeln("\n** Interrupted. Aborting...", col.FAIL))
 
 	def cleanup(self):
-		shutil.rmtree(self.tempdir)
+		if self.clear:
+			shutil.rmtree(self.tempdir)
 		if self.scanned:
-			self.fileout.write("%s" % (json.dumps(self.out_json, indent=4) if self.json else ""))
-			self.fileout.close()
-			print("%s\n** Results saved into '%s%s%s%s'%s." % (col.HEADER, col.ENDC, col.OKGREEN, self.output, col.HEADER, col.ENDC))
+			time.sleep(1)
+			print("\n%s** Results saved into '%s%s%s%s'%s." % (col.HEADER, col.ENDC, col.OKGREEN, self.output, col.HEADER, col.ENDC))
+			if self.json:
+				with open(self.output_json, "w+") as f_open:
+					json.dump(self.out_json, f_open, indent=4)
+				print("%s** Json Results saved into '%s%s%s%s'%s." % (col.HEADER, col.ENDC, col.OKGREEN, self.output_json, col.HEADER, col.ENDC))
 		else:
-			self.fileout.close()
 			os.remove(self.output)
 			util.writeln("\n** Done with nothing. ¯\\_(ツ)_/¯", col.WARNING)
+
+		self.output_open.close()

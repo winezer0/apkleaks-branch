@@ -24,8 +24,9 @@ def argument():
 	parser.add_argument("-f", "--file", help="APK file to scanning", type=str, required=True)
 	parser.add_argument("-o", "--output", help="Write to file results (random if not set)", type=str, required=False)
 	parser.add_argument("-p", "--pattern", help="Path to custom patterns JSON", type=str, required=False)
-	parser.add_argument("-a", "--args", help="Disassembler arguments (e.g. --threads-count 5 --deobf)", type=str, required=False)
-	parser.add_argument("--json", help="Save as JSON format", required=False, action="store_true")
+	parser.add_argument("-a", "--args", help="Disassembler arguments (e.g. --threads-count 5 --deobf)", type=str, required=False, default="--log-level error")
+	parser.add_argument("-j", "--json", help="Save as JSON format", required=False, action="store_true")
+	parser.add_argument("-c", "--clear", help="Clear Apk DeCompile Dir", required=False, action="store_true")
 	arg = parser.parse_args()
 	return arg
 
